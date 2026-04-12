@@ -65,9 +65,9 @@ Offset[x,y] = ((x + 3y) * (x + 1)) / 2  (for all x,y ∈ [0,4])
 Lookup table (precomputed):
 [0,0]=0   [1,0]=1   [2,0]=62  [3,0]=28  [4,0]=27
 [0,1]=36  [1,1]=44  [2,1]=6   [3,1]=55  [4,1]=20
-[0,2]=3   [1,2]=10  [2,2]=43  [3,2]=15  [4,2]=21
-[0,3]=41  [1,3]=45  [2,3]=2   [3,3]=61  [4,3]=28
-[0,4]=18  [1,4]=1   [2,4]=6   [3,4]=25  [4,4]=8
+[0,2]=3   [1,2]=10  [2,2]=43  [3,2]=25  [4,2]=39
+[0,3]=41  [1,3]=45  [2,3]=15  [3,3]=21  [4,3]=8
+[0,4]=18  [1,4]=2   [2,4]=61  [3,4]=56  [4,4]=14
 ```
 
 **HDL Logic**:
@@ -163,7 +163,7 @@ state[0] = state[0] ^ RC[round]  // XOR with round constant
 ```
 Input: message (variable length)
 Rate r = 136 bytes (1088 bits)  // SHAKE256 rate
-Capacity c = 256 bits (32 bytes)
+Capacity c = 512 bits (64 bytes)
 
 For each 136-byte block:
   1. Pad message block to 136 bytes (SHAKE256 padding)

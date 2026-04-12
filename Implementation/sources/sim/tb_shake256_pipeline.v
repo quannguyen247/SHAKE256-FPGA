@@ -16,6 +16,8 @@ module tb_shake256_pipeline;
     
     integer error_count;
     integer cycle_count;
+
+    localparam [63:0] ZERO_STATE_LANE0_EXPECT = 64'hf1258f7940e1dde7;
     
     // Instantiate permutation pipeline
     keccak_permutation_pipeline u_dut (
@@ -54,7 +56,7 @@ module tb_shake256_pipeline;
         #10;
         in_valid = 1'b0;
         
-        // Wait for permutation to complete (4 stages × 2 clocks per stage = ~8+ cycles)
+        // Wait for permutation to complete (iterative core: ~24 cycles)
         while (!out_valid && cycle_count < 100) begin
             cycle_count = cycle_count + 1;
             #10;
@@ -66,6 +68,16 @@ module tb_shake256_pipeline;
         end else begin
             $display("Permutation completed after %d cycles", cycle_count);
             $display("Output state[63:0] = 0x%016x", state_out[63:0]);
+
+            if (state_out[63:0] !== ZERO_STATE_LANE0_EXPECT) begin
+                $display("ERROR: Zero-state lane[0] mismatch. exp=0x%016x", ZERO_STATE_LANE0_EXPECT);
+                error_count = error_count + 1;
+            end
+
+            if ((cycle_count < 20) || (cycle_count > 40)) begin
+                $display("ERROR: Unexpected latency for iterative core (%0d cycles)", cycle_count);
+                error_count = error_count + 1;
+            end
         end
         
         #50;

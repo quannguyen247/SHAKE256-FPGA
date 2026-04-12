@@ -18,12 +18,16 @@ module keccak_stage6 (
     wire [`KECCAK_STATE_WIDTH-1:0] s4;
     wire [`KECCAK_STATE_WIDTH-1:0] s5;
 
-    keccak_round r0 (.state_in(state_in), .round_idx({stage_idx, 3'd0}), .state_out(s0));
-    keccak_round r1 (.state_in(s0),      .round_idx({stage_idx, 3'd1}), .state_out(s1));
-    keccak_round r2 (.state_in(s1),      .round_idx({stage_idx, 3'd2}), .state_out(s2));
-    keccak_round r3 (.state_in(s2),      .round_idx({stage_idx, 3'd3}), .state_out(s3));
-    keccak_round r4 (.state_in(s3),      .round_idx({stage_idx, 3'd4}), .state_out(s4));
-    keccak_round r5 (.state_in(s4),      .round_idx({stage_idx, 3'd5}), .state_out(s5));
+    wire [4:0] base_round;
+
+    assign base_round = ({3'b000, stage_idx} * 5'd6);
+
+    keccak_round r0 (.state_in(state_in), .round_idx(base_round + 5'd0), .state_out(s0));
+    keccak_round r1 (.state_in(s0),      .round_idx(base_round + 5'd1), .state_out(s1));
+    keccak_round r2 (.state_in(s1),      .round_idx(base_round + 5'd2), .state_out(s2));
+    keccak_round r3 (.state_in(s2),      .round_idx(base_round + 5'd3), .state_out(s3));
+    keccak_round r4 (.state_in(s3),      .round_idx(base_round + 5'd4), .state_out(s4));
+    keccak_round r5 (.state_in(s4),      .round_idx(base_round + 5'd5), .state_out(s5));
 
     assign state_out = s5;
 

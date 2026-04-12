@@ -2,6 +2,7 @@
 
 `include "../utils/keccak_defs.vh"
 
+(* keep_hierarchy = "yes" *)
 module keccak_permutation_pipeline (
     clk,
     rst_n,
@@ -17,46 +18,54 @@ module keccak_permutation_pipeline (
     output out_valid;
     output [`KECCAK_STATE_WIDTH-1:0] state_out;
 
-    reg [`KECCAK_STATE_WIDTH-1:0] stage_state [0:`KECCAK_PIPE_STAGES];
-    reg stage_valid [0:`KECCAK_PIPE_STAGES];
+    // Iterative permutation core: one round per cycle.
+    // This reduces LUT usage significantly versus 24-round unrolled datapaths.
+    reg [`KECCAK_STATE_WIDTH-1:0] state_reg;
+    reg [`KECCAK_STATE_WIDTH-1:0] state_out_reg;
+    reg [4:0] round_idx_reg;
+    reg busy_reg;
+    reg out_valid_reg;
 
-    wire [`KECCAK_STATE_WIDTH-1:0] stage_next0;
-    wire [`KECCAK_STATE_WIDTH-1:0] stage_next1;
-    wire [`KECCAK_STATE_WIDTH-1:0] stage_next2;
-    wire [`KECCAK_STATE_WIDTH-1:0] stage_next3;
+    wire [`KECCAK_STATE_WIDTH-1:0] round_state_next;
 
-    integer k;
-
-    keccak_stage6 u_stage0 (.state_in(stage_state[0]), .stage_idx(2'd0), .state_out(stage_next0));
-    keccak_stage6 u_stage1 (.state_in(stage_state[1]), .stage_idx(2'd1), .state_out(stage_next1));
-    keccak_stage6 u_stage2 (.state_in(stage_state[2]), .stage_idx(2'd2), .state_out(stage_next2));
-    keccak_stage6 u_stage3 (.state_in(stage_state[3]), .stage_idx(2'd3), .state_out(stage_next3));
+    (* keep_hierarchy = "yes" *)
+    keccak_round u_round (
+        .state_in(state_reg),
+        .round_idx(round_idx_reg),
+        .state_out(round_state_next)
+    );
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            for (k = 0; k <= `KECCAK_PIPE_STAGES; k = k + 1) begin
-                stage_state[k] <= {`KECCAK_STATE_WIDTH{1'b0}};
-                stage_valid[k] <= 1'b0;
-            end
+            state_reg <= {`KECCAK_STATE_WIDTH{1'b0}};
+            state_out_reg <= {`KECCAK_STATE_WIDTH{1'b0}};
+            round_idx_reg <= 5'd0;
+            busy_reg <= 1'b0;
+            out_valid_reg <= 1'b0;
         end else begin
-            stage_state[0] <= state_in;
-            stage_valid[0] <= in_valid;
+            // out_valid is a one-cycle pulse when a permutation completes.
+            out_valid_reg <= 1'b0;
 
-            stage_state[1] <= stage_next0;
-            stage_valid[1] <= stage_valid[0];
+            if (busy_reg) begin
+                state_reg <= round_state_next;
 
-            stage_state[2] <= stage_next1;
-            stage_valid[2] <= stage_valid[1];
-
-            stage_state[3] <= stage_next2;
-            stage_valid[3] <= stage_valid[2];
-
-            stage_state[4] <= stage_next3;
-            stage_valid[4] <= stage_valid[3];
+                if (round_idx_reg == (`KECCAK_NUM_ROUNDS - 1)) begin
+                    busy_reg <= 1'b0;
+                    round_idx_reg <= 5'd0;
+                    out_valid_reg <= 1'b1;
+                    state_out_reg <= round_state_next;
+                end else begin
+                    round_idx_reg <= round_idx_reg + 5'd1;
+                end
+            end else if (in_valid) begin
+                state_reg <= state_in;
+                round_idx_reg <= 5'd0;
+                busy_reg <= 1'b1;
+            end
         end
     end
 
-    assign out_valid = stage_valid[`KECCAK_PIPE_STAGES];
-    assign state_out = stage_state[`KECCAK_PIPE_STAGES];
+    assign out_valid = out_valid_reg;
+    assign state_out = state_out_reg;
 
 endmodule

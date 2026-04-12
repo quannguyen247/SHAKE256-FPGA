@@ -1,0 +1,10 @@
+INFO: [VRFC 10-2263] Analyzing Verilog file "C:/Users/Quan/Desktop/SHAKE256/Implementation/sources/rtl/modules/keccak_permutation_pipeline.v" into library work
+INFO: [VRFC 10-311] analyzing module keccak_permutation_pipeline
+INFO: [VRFC 10-2263] Analyzing Verilog file "C:/Users/Quan/Desktop/SHAKE256/Implementation/sources/rtl/modules/keccak_round.v" into library work
+INFO: [VRFC 10-311] analyzing module keccak_round
+INFO: [VRFC 10-2263] Analyzing Verilog file "C:/Users/Quan/Desktop/SHAKE256/Implementation/sources/rtl/modules/shake256_pad_block.v" into library work
+INFO: [VRFC 10-311] analyzing module shake256_pad_block
+INFO: [VRFC 10-2263] Analyzing Verilog file "C:/Users/Quan/Desktop/SHAKE256/Implementation/sources/rtl/modules/shake256_sponge.v" into library work
+INFO: [VRFC 10-311] analyzing module shake256_sponge
+INFO: [VRFC 10-2263] Analyzing Verilog file "C:/Users/Quan/Desktop/SHAKE256/Implementation/sources/sim/tb_shake256_sponge_cov.v" into library work
+INFO: [VRFC 10-311] analyzing module tb_shake256_sponge_cov

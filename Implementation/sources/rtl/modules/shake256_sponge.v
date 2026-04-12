@@ -51,26 +51,24 @@ module shake256_sponge (
     input [15:0] num_output_blocks;  // Number of 136-byte output blocks to squeeze
     
     // FSM states
-    parameter IDLE           = 4'd0;
-    parameter ABSORB_BLOCK   = 4'd1;
-    parameter PERMUTE_ABSORB = 4'd2;
-    parameter SQUEEZE_LOOP   = 4'd3;
-    parameter PERMUTE_SQUEEZE = 4'd4;
-    parameter DONE_ST        = 4'd5;
+    parameter IDLE            = 3'd0;
+    parameter ABSORB_BLOCK    = 3'd1;
+    parameter PERMUTE_ABSORB  = 3'd2;
+    parameter SQUEEZE_LOOP    = 3'd3;
+    parameter PERMUTE_SQUEEZE = 3'd4;
+    parameter DONE_ST         = 3'd5;
     
-    reg [3:0] state;
-    reg [3:0] state_next;
-    
+    reg [2:0] state;
+
     reg [`KECCAK_STATE_WIDTH-1:0] keccak_state;
-    reg [`KECCAK_STATE_WIDTH-1:0] keccak_state_next;
-    
+
     reg [15:0] absorb_count;
-    reg [15:0] absorb_count_next;
-    
     reg [15:0] squeeze_count;
-    reg [15:0] squeeze_count_next;
-    
+    reg [15:0] num_input_blocks_reg;
+    reg [15:0] num_output_blocks_reg;
+
     reg perm_in_valid;
+    reg perm_waiting;
     wire perm_out_valid;
     wire [`KECCAK_STATE_WIDTH-1:0] perm_out;
     
@@ -91,92 +89,96 @@ module shake256_sponge (
             keccak_state <= {`KECCAK_STATE_WIDTH{1'b0}};
             absorb_count <= 16'h0000;
             squeeze_count <= 16'h0000;
+            num_input_blocks_reg <= 16'h0000;
+            num_output_blocks_reg <= 16'h0000;
             perm_in_valid <= 1'b0;
+            perm_waiting <= 1'b0;
         end else begin
-            state <= state_next;
-            keccak_state <= keccak_state_next;
-            absorb_count <= absorb_count_next;
-            squeeze_count <= squeeze_count_next;
-            perm_in_valid <= (state_next == PERMUTE_ABSORB) || (state_next == PERMUTE_SQUEEZE);
+            // One-cycle launch pulse for permutation core.
+            perm_in_valid <= 1'b0;
+
+            case (state)
+                IDLE: begin
+                    if (start) begin
+                        state <= ABSORB_BLOCK;
+                        keccak_state <= {`KECCAK_STATE_WIDTH{1'b0}};
+                        absorb_count <= 16'h0000;
+                        squeeze_count <= 16'h0000;
+                        num_input_blocks_reg <= num_input_blocks;
+                        num_output_blocks_reg <= num_output_blocks;
+                        perm_waiting <= 1'b0;
+                    end
+                end
+
+                ABSORB_BLOCK: begin
+                    if (absorb_block_valid) begin
+                        // XOR input block into rate (lower 1088 bits).
+                        keccak_state[1087:0] <= keccak_state[1087:0] ^ absorb_block_data;
+                        absorb_count <= absorb_count + 16'h0001;
+
+                        // After each block, apply permutation.
+                        state <= PERMUTE_ABSORB;
+                        perm_in_valid <= 1'b1;
+                        perm_waiting <= 1'b1;
+                    end
+                end
+
+                PERMUTE_ABSORB: begin
+                    if (perm_waiting && perm_out_valid) begin
+                        keccak_state <= perm_out;
+                        perm_waiting <= 1'b0;
+
+                        if (absorb_count >= num_input_blocks_reg) begin
+                            squeeze_count <= 16'h0000;
+                            if (num_output_blocks_reg == 16'h0000) begin
+                                state <= DONE_ST;
+                            end else begin
+                                state <= SQUEEZE_LOOP;
+                            end
+                        end else begin
+                            state <= ABSORB_BLOCK;
+                        end
+                    end
+                end
+
+                SQUEEZE_LOOP: begin
+                    if (squeeze_data_ready && (squeeze_count < num_output_blocks_reg)) begin
+                        squeeze_count <= squeeze_count + 16'h0001;
+
+                        if (squeeze_count + 16'h0001 >= num_output_blocks_reg) begin
+                            state <= DONE_ST;
+                        end else begin
+                            state <= PERMUTE_SQUEEZE;
+                            perm_in_valid <= 1'b1;
+                            perm_waiting <= 1'b1;
+                        end
+                    end
+                end
+
+                PERMUTE_SQUEEZE: begin
+                    if (perm_waiting && perm_out_valid) begin
+                        keccak_state <= perm_out;
+                        perm_waiting <= 1'b0;
+                        state <= SQUEEZE_LOOP;
+                    end
+                end
+
+                DONE_ST: begin
+                    state <= IDLE;
+                    perm_waiting <= 1'b0;
+                end
+
+                default: begin
+                    state <= IDLE;
+                    perm_waiting <= 1'b0;
+                end
+            endcase
         end
-    end
-    
-    // Combinational next-state logic
-    always @* begin
-        state_next = state;
-        keccak_state_next = keccak_state;
-        absorb_count_next = absorb_count;
-        squeeze_count_next = squeeze_count;
-        
-        case (state)
-            IDLE: begin
-                if (start) begin
-                    state_next = ABSORB_BLOCK;
-                    keccak_state_next = {`KECCAK_STATE_WIDTH{1'b0}};
-                    absorb_count_next = 16'h0000;
-                    squeeze_count_next = 16'h0000;
-                end
-            end
-            
-            ABSORB_BLOCK: begin
-                if (absorb_block_valid) begin
-                    // XOR input block into rate (lower 1088 bits)
-                    keccak_state_next[1087:0] = keccak_state[1087:0] ^ absorb_block_data;
-                    absorb_count_next = absorb_count + 16'h0001;
-                    
-                    // After each block, apply permutation
-                    state_next = PERMUTE_ABSORB;
-                end
-            end
-            
-            PERMUTE_ABSORB: begin
-                if (perm_out_valid) begin
-                    keccak_state_next = perm_out;
-                    
-                    // Check if more absorption needed
-                    if (absorb_count >= num_input_blocks) begin
-                        // Done absorbing, start squeezing
-                        state_next = SQUEEZE_LOOP;
-                        squeeze_count_next = 16'h0000;
-                    end else begin
-                        // More blocks to absorb
-                        state_next = ABSORB_BLOCK;
-                    end
-                end
-            end
-            
-            SQUEEZE_LOOP: begin
-                if (squeeze_data_ready && squeeze_count < num_output_blocks) begin
-                    squeeze_count_next = squeeze_count + 16'h0001;
-                    
-                    if (squeeze_count + 16'h0001 >= num_output_blocks) begin
-                        // All output squeezed
-                        state_next = DONE_ST;
-                    end else begin
-                        // Need more output, apply permutation again
-                        state_next = PERMUTE_SQUEEZE;
-                    end
-                end
-            end
-            
-            PERMUTE_SQUEEZE: begin
-                if (perm_out_valid) begin
-                    keccak_state_next = perm_out;
-                    state_next = SQUEEZE_LOOP;
-                end
-            end
-            
-            DONE_ST: begin
-                state_next = IDLE;
-            end
-            
-            default: state_next = IDLE;
-        endcase
     end
     
     // Output logic
     assign absorb_block_ready = (state == ABSORB_BLOCK);
-    assign squeeze_data_valid = (state == SQUEEZE_LOOP) && (squeeze_count < num_output_blocks);
+    assign squeeze_data_valid = (state == SQUEEZE_LOOP) && (squeeze_count < num_output_blocks_reg);
     assign squeeze_data = keccak_state[1087:0];  // Output lower 1088 bits (136 bytes)
     assign done = (state == DONE_ST);
 

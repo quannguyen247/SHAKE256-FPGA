@@ -1,0 +1,17 @@
+Vivado Simulator v2025.2.1
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+Running: C:/AMDDesignTools/2025.2.1/Vivado/bin/unwrapped/win64.o/xelab.exe --relax tb_shake256_sponge_cov -s tb_cov 
+Multi-threading is on. Using 10 slave threads.
+Starting static elaboration
+Pass Through NonSizing Optimizer
+Completed static elaboration
+Starting simulation data flow analysis
+Completed simulation data flow analysis
+Time Resolution for simulation is 1ps
+Compiling module work.keccak_round
+Compiling module work.keccak_permutation_pipeline
+Compiling module work.shake256_sponge
+Compiling module work.shake256_pad_block
+Compiling module work.tb_shake256_sponge_cov
+Built simulation snapshot tb_cov

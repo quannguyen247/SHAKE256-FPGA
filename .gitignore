@@ -1,4 +1,8 @@
+.venv/
+Ref/
 Implementation/SHAKE256.cache/
 Implementation/SHAKE256.hw/
 Implementation/SHAKE256.ip_user_files/
 Implementation/SHAKE256.sim/
+Implementation/SHAKE256.runs/
+Implementation/SHAKE256.srcs/

@@ -2,6 +2,7 @@
 
 `include "../utils/keccak_defs.vh"
 
+(* keep_hierarchy = "yes" *)
 module keccak_round (
     state_in,
     round_idx,
@@ -20,8 +21,6 @@ module keccak_round (
     integer x;
     integer y;
     integer i;
-    integer idx;
-    integer new_x;
     integer src_x;
     integer src_y;
     integer src_idx;
@@ -37,41 +36,37 @@ module keccak_round (
         end
     endfunction
 
-    // Rho offset table from Keccak specification
-    // Offset for lane [x,y] at index (x + 5*y)
-    // Computed as: ((x + 3*y) * (x + 1)) / 2 (mod 64)
+    // Canonical Rho offsets r[x,y] from Keccak-f[1600], indexed by lane x+5*y.
+    // This table must match FIPS 202 / XKCP exactly for bit-accurate outputs.
     function [5:0] rho_offset;
-        input integer lane;
-        integer x, y;
+        input [4:0] lane;
         begin
-            x = lane % 5;
-            y = lane / 5;
-            case ({x, y})
-                {5'd0, 5'd0}: rho_offset = 6'd0;
-                {5'd1, 5'd0}: rho_offset = 6'd1;
-                {5'd2, 5'd0}: rho_offset = 6'd62;
-                {5'd3, 5'd0}: rho_offset = 6'd28;
-                {5'd4, 5'd0}: rho_offset = 6'd27;
-                {5'd0, 5'd1}: rho_offset = 6'd36;
-                {5'd1, 5'd1}: rho_offset = 6'd44;
-                {5'd2, 5'd1}: rho_offset = 6'd6;
-                {5'd3, 5'd1}: rho_offset = 6'd55;
-                {5'd4, 5'd1}: rho_offset = 6'd20;
-                {5'd0, 5'd2}: rho_offset = 6'd3;
-                {5'd1, 5'd2}: rho_offset = 6'd10;
-                {5'd2, 5'd2}: rho_offset = 6'd43;
-                {5'd3, 5'd2}: rho_offset = 6'd15;
-                {5'd4, 5'd2}: rho_offset = 6'd21;
-                {5'd0, 5'd3}: rho_offset = 6'd41;
-                {5'd1, 5'd3}: rho_offset = 6'd45;
-                {5'd2, 5'd3}: rho_offset = 6'd2;
-                {5'd3, 5'd3}: rho_offset = 6'd61;
-                {5'd4, 5'd3}: rho_offset = 6'd56;
-                {5'd0, 5'd4}: rho_offset = 6'd18;
-                {5'd1, 5'd4}: rho_offset = 6'd8;
-                {5'd2, 5'd4}: rho_offset = 6'd25;
-                {5'd3, 5'd4}: rho_offset = 6'd39;
-                {5'd4, 5'd4}: rho_offset = 6'd14;
+            case (lane)
+                5'd0:  rho_offset = 6'd0;
+                5'd1:  rho_offset = 6'd1;
+                5'd2:  rho_offset = 6'd62;
+                5'd3:  rho_offset = 6'd28;
+                5'd4:  rho_offset = 6'd27;
+                5'd5:  rho_offset = 6'd36;
+                5'd6:  rho_offset = 6'd44;
+                5'd7:  rho_offset = 6'd6;
+                5'd8:  rho_offset = 6'd55;
+                5'd9:  rho_offset = 6'd20;
+                5'd10: rho_offset = 6'd3;
+                5'd11: rho_offset = 6'd10;
+                5'd12: rho_offset = 6'd43;
+                5'd13: rho_offset = 6'd25;
+                5'd14: rho_offset = 6'd39;
+                5'd15: rho_offset = 6'd41;
+                5'd16: rho_offset = 6'd45;
+                5'd17: rho_offset = 6'd15;
+                5'd18: rho_offset = 6'd21;
+                5'd19: rho_offset = 6'd8;
+                5'd20: rho_offset = 6'd18;
+                5'd21: rho_offset = 6'd2;
+                5'd22: rho_offset = 6'd61;
+                5'd23: rho_offset = 6'd56;
+                5'd24: rho_offset = 6'd14;
                 default: rho_offset = 6'd0;
             endcase
         end
