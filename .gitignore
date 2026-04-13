@@ -1,7 +1,5 @@
 .venv/
-Ref/
 PQClean/
-Test/
 Implementation/logs/*
 Implementation/SHAKE256.cache/
 Implementation/SHAKE256.hw/
