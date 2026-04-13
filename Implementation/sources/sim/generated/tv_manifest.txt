@@ -1,9 +1,0 @@
-SHAKE256 vector corpus generated from PQClean fips202.c
-rate_bytes=136
-total_cases=397
-fixed_cases=4
-exhaustive_length_cases=137
-random_cases=256
-num_out_blocks_eq_1=201
-num_out_blocks_eq_2=196
-rng_seed_initial=0x1A2B3C4D

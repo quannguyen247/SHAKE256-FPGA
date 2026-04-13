@@ -1,5 +1,7 @@
 .venv/
 Ref/
+PQClean/
+Implementation/logs/*
 Implementation/SHAKE256.cache/
 Implementation/SHAKE256.hw/
 Implementation/SHAKE256.ip_user_files/
