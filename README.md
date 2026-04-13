@@ -7,8 +7,8 @@ and a PQClean software reference baseline.
 
 - `Implementation/`
   - `SHAKE256.xpr`: Vivado project
-  - `sources/rtl/`: SHAKE256/Keccak RTL modules
-  - `sources/testbench/`: Verilog testbenches
+  - `rtl/`: SHAKE256/Keccak RTL modules
+  - `testbench/`: Verilog testbenches
   - `logs/`: all runtime logs and simulation artifacts
   - `scripts/`: run scripts (Python only)
   - `reports/`: generated logs and status reports
@@ -52,9 +52,10 @@ Useful options:
 
 ```powershell
 python .\simulation.py --random-cases 512
-python .\simulation.py --skip-vector-gen
 python .\simulation.py --vivado-bin "C:\AMDDesignTools\2025.2\Vivado\bin"
 ```
+
+Note: simulation always generates fresh vectors before compile/elab/run.
 
 ### 4.2 Run synthesis
 

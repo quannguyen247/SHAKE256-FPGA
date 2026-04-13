@@ -12,7 +12,7 @@ from typing import List
 SCRIPT_DIR = Path(__file__).resolve().parent
 IMPL_DIR = SCRIPT_DIR.parent
 LOGS_DIR = IMPL_DIR / "logs"
-TESTBENCH_DIR = IMPL_DIR / "sources" / "testbench"
+TESTBENCH_DIR = IMPL_DIR / "testbench"
 
 SHAKE_RATE_BYTES = 136
 MAX_OUT_BLOCKS = 2

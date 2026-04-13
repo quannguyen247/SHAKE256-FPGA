@@ -53,7 +53,6 @@ def main() -> int:
     parser.add_argument("--jobs", type=int, default=8, help="Parallel jobs used for synthesis/implementation")
 
     parser.add_argument("--random-cases", type=int, default=256, help="Simulation random vector count")
-    parser.add_argument("--skip-vector-gen", action="store_true", help="Skip simulation vector generation")
 
     parser.add_argument("--impl-to-step", default="write_bitstream", help="Implementation target step")
 
@@ -83,8 +82,6 @@ def main() -> int:
         ]
         if args.vivado_bin:
             sim_cmd.extend(["--vivado-bin", args.vivado_bin])
-        if args.skip_vector_gen:
-            sim_cmd.append("--skip-vector-gen")
 
         rc = run_step("Simulation", sim_cmd, run_log)
         if rc != 0:

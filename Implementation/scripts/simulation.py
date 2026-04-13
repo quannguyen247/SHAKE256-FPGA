@@ -15,8 +15,8 @@ from typing import Dict, List, Optional, Tuple
 SCRIPT_DIR = Path(__file__).resolve().parent
 IMPL_DIR = SCRIPT_DIR.parent
 LOGS_DIR = IMPL_DIR / "logs"
-TESTBENCH_DIR = IMPL_DIR / "sources" / "testbench"
-RTL_DIR = IMPL_DIR / "sources" / "rtl"
+TESTBENCH_DIR = IMPL_DIR / "testbench"
+RTL_DIR = IMPL_DIR / "rtl"
 
 VECTOR_FILES = [
     "tv_meta.vh",
@@ -89,7 +89,6 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run SHAKE256 full-coverage HDL simulation.")
     parser.add_argument("--vivado-bin", default="", help="Path to Vivado bin containing xvlog/xelab/xsim")
     parser.add_argument("--random-cases", type=int, default=256, help="Number of deterministic-random vectors")
-    parser.add_argument("--skip-vector-gen", action="store_true", help="Skip PQClean vector generation step")
     args = parser.parse_args()
 
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -116,34 +115,24 @@ def main() -> int:
     env = os.environ.copy()
     env["PATH"] = str(vivado_bin) + os.pathsep + env.get("PATH", "")
 
-    if not args.skip_vector_gen:
-        vec_cmd = [
-            sys.executable,
-            str(SCRIPT_DIR / "test_vectors.py"),
-            "--output-dir",
-            str(generated_dir),
-            "--random-cases",
-            str(args.random_cases),
-        ]
-        rc, out = run_cmd(vec_cmd, cwd=SCRIPT_DIR)
-        append_log(log_file, "test_vectors", vec_cmd, out)
-        print(out, end="" if out.endswith("\n") else "\n")
-        if rc != 0:
-            print(f"[FAIL] Vector generation failed (exit {rc}).")
-            print(f"[INFO] Logs: {log_file}")
-            return 1
-    else:
-        # Fallback: reuse checked-in vectors if present.
-        fallback_generated = TESTBENCH_DIR / "generated"
-        if fallback_generated.exists():
-            generated_dir.mkdir(parents=True, exist_ok=True)
-            for name in VECTOR_FILES:
-                src = fallback_generated / name
-                if src.exists():
-                    shutil.copy2(src, generated_dir / name)
+    vec_cmd = [
+        sys.executable,
+        str(SCRIPT_DIR / "test_vectors.py"),
+        "--output-dir",
+        str(generated_dir),
+        "--random-cases",
+        str(args.random_cases),
+    ]
+    rc, out = run_cmd(vec_cmd, cwd=SCRIPT_DIR)
+    append_log(log_file, "test_vectors", vec_cmd, out)
+    print(out, end="" if out.endswith("\n") else "\n")
+    if rc != 0:
+        print(f"[FAIL] Vector generation failed (exit {rc}).")
+        print(f"[INFO] Logs: {log_file}")
+        return 1
 
     if not ensure_vectors_exist(generated_dir):
-        print("[BLOCKED] Missing vector files. Run without --skip-vector-gen first.")
+        print("[BLOCKED] Missing vector files after generation step.")
         with log_file.open("a", encoding="utf-8") as fp:
             fp.write("[BLOCKED] Missing vector files under generated directory\n")
         print(f"[INFO] Logs: {log_file}")

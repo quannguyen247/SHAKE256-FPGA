@@ -1,9 +1,0 @@
-SHAKE256 vector corpus generated from Python hashlib.shake_256
-rate_bytes=136
-total_cases=142
-fixed_cases=4
-exhaustive_length_cases=137
-random_cases=1
-num_out_blocks_eq_1=72
-num_out_blocks_eq_2=70
-rng_seed_initial=0x1A2B3C4D

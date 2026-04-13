@@ -1,6 +1,6 @@
 # SHAKE256 FPGA wrapper constraints (XDC command subset compatible)
 
-# 200 MHz system clock
+# 250 MHz system clock target
 create_clock -name sys_clk -period 5.000 [get_ports clk]
 
 # Active-low asynchronous reset does not need timing closure.
