@@ -1,20 +1,19 @@
-# SHAKE256 FPGA wrapper constraints (XDC command subset compatible)
-
-# 250 MHz system clock target
+# 200 MHz system clock target
 create_clock -name sys_clk -period 5.000 [get_ports clk]
 
-# Active-low asynchronous reset does not need timing closure.
+# Timing exceptions for asynchronous reset and control signals
 set_false_path -from [get_ports rst_n]
+set_false_path -from [get_ports start_btn]
+set_false_path -to [get_ports done_led]
 
 # Generic I/O electrical standard. Replace with board-specific constraints as needed.
 set_property IOSTANDARD LVCMOS33 [get_ports *]
 
-# Temporary bitstream-unblock settings when board pin LOCs are not finalized yet.
-# Remove these lines after adding PACKAGE_PIN constraints for all top-level ports.
+# Temporary bitstream-unblock settings 
 set_property SEVERITY {Warning} [get_drc_checks UCIO-1]
 set_property SEVERITY {Warning} [get_drc_checks NSTD-1]
 
-# Board pin template (fill with real package pins, then remove the UCIO/NSTD overrides above):
+# Board pin template
 # set_property PACKAGE_PIN <PIN> [get_ports clk]
 # set_property PACKAGE_PIN <PIN> [get_ports rst_n]
 # set_property PACKAGE_PIN <PIN> [get_ports start_btn]

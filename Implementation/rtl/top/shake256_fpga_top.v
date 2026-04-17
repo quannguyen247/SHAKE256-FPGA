@@ -41,8 +41,8 @@ module shake256_fpga_top (
     reg [15:0] num_output_blocks;
 
     reg sent_block;
-    reg [7:0] hash_byte_reg;
-    reg done_led_reg;
+    (* IOB = "TRUE" *) reg [7:0] hash_byte_reg;
+    (* IOB = "TRUE" *) reg done_led_reg;
 
     reg [1:0] state;
     localparam ST_IDLE = 2'd0;
