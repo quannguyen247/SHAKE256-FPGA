@@ -1,5 +1,4 @@
 .venv/
-PQClean/
 Implementation/logs/*
 Implementation/SHAKE256.cache/
 Implementation/SHAKE256.hw/
@@ -8,3 +7,6 @@ Implementation/SHAKE256.sim/
 Implementation/SHAKE256.runs/
 Implementation/SHAKE256.srcs/
 Implementation/SHAKE256.ioplanning/
+Implementation/vectors/*
+!Implementation/vectors/test_vectors.py
+testbench/tb_shake256_top_results.txt
