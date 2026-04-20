@@ -10,7 +10,7 @@ function [63:0] rotl64;
     end
 endfunction
 
-// Rho offsets (Keccak-f[1600]), indexed by lane = x + 5*y
+// Rho offsets, indexed by lane = x + 5*y
 function [5:0] rho_offset;
     input [4:0] lane;
     begin
@@ -45,21 +45,21 @@ function [5:0] rho_offset;
     end
 endfunction
 
-// Round constants for Keccak-f[1600]
+// Round constants 
 function [63:0] round_constant;
     input [4:0] idx;
     begin
         case (idx)
-            5'd0:  round_constant = 64'h0000000000000001;
-            5'd1:  round_constant = 64'h0000000000008082;
-            5'd2:  round_constant = 64'h800000000000808a;
-            5'd3:  round_constant = 64'h8000000080008000;
-            5'd4:  round_constant = 64'h000000000000808b;
-            5'd5:  round_constant = 64'h0000000080000001;
-            5'd6:  round_constant = 64'h8000000080008081;
-            5'd7:  round_constant = 64'h8000000000008009;
-            5'd8:  round_constant = 64'h000000000000008a;
-            5'd9:  round_constant = 64'h0000000000000088;
+            5'd0: round_constant = 64'h0000000000000001;
+            5'd1: round_constant = 64'h0000000000008082;
+            5'd2: round_constant = 64'h800000000000808a;
+            5'd3: round_constant = 64'h8000000080008000;
+            5'd4: round_constant = 64'h000000000000808b;
+            5'd5: round_constant = 64'h0000000080000001;
+            5'd6: round_constant = 64'h8000000080008081;
+            5'd7: round_constant = 64'h8000000000008009;
+            5'd8: round_constant = 64'h000000000000008a;
+            5'd9: round_constant = 64'h0000000000000088;
             5'd10: round_constant = 64'h0000000080008009;
             5'd11: round_constant = 64'h000000008000000a;
             5'd12: round_constant = 64'h000000008000808b;
