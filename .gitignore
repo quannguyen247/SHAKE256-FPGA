@@ -9,4 +9,4 @@ Implementation/SHAKE256.srcs/
 Implementation/SHAKE256.ioplanning/
 Implementation/vectors/*
 !Implementation/vectors/test_vectors.py
-testbench/tb_shake256_top_results.txt
+testbench/result_log.txt
