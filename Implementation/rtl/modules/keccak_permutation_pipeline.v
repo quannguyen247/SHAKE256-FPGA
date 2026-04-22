@@ -60,7 +60,7 @@ module keccak_permutation_pipeline (
             out_valid <= 1'b0; 
             case (next_state)
                 ST_IDLE: begin
-                    if (curr_state == ST_CI && round_ctr == 23) begin
+                    if (curr_state == ST_CI) begin
                         out_valid <= 1'b1;
                         state_out <= ci_next; 
                     end
