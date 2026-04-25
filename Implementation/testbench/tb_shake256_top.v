@@ -2,12 +2,13 @@
 
 module tb_shake256_top;
 
+    localparam integer BLK_WIDTH = 32;
     localparam integer TIMEOUT_CYCLES = 1836; 
     localparam integer MAX_BUFFER = 1024; 
 
     reg clk, rst_n, start, absorb_block_valid, squeeze_data_ready;
     reg [7:0] msg_len_bytes;
-    reg [15:0] num_input_blocks, num_output_blocks;
+    reg [BLK_WIDTH-1:0] num_input_blocks, num_output_blocks;
     reg [1087:0] absorb_block_data, msg_block_in;
     
     wire done, absorb_block_ready, squeeze_data_valid, need_block2;
@@ -17,11 +18,13 @@ module tb_shake256_top;
     reg [1087:0] exp_outs [0:3]; 
     reg [639:0] line_buffer;            
     
-    integer tv_count_actual, case_idx, byte_idx;
+    integer tv_count_actual, case_idx;
     integer error_count, report_fd, spec_fd, status, b; 
     reg timeout_flag, case_pass;
 
-    shake256_sponge u_dut (
+    shake256_sponge #(
+        .BLOCK_WIDTH(BLK_WIDTH)
+    ) u_dut (
         .clk(clk), .rst_n(rst_n),
         .absorb_valid(absorb_block_valid), .absorb_in(absorb_block_data), .absorb_ready(absorb_block_ready),
         .squeeze_ready(squeeze_data_ready), .squeeze_valid(squeeze_data_valid), .squeeze_out(squeeze_data),
@@ -37,11 +40,11 @@ module tb_shake256_top;
 
     initial begin 
         clk = 1'b0; 
-        forever #5 clk = ~clk; 
-    end
+        forever #2.5 clk = ~clk; 
+    end 
 
     task safe_wait(input integer mode); 
-    begin
+    begin   
         timeout_flag = 1'b0;
         fork : wait_block
             begin
@@ -66,7 +69,7 @@ module tb_shake256_top;
     begin
         if (report_fd != 0) begin
             $fwrite(report_fd, "Case %0d - msg_len: %0d, blocks: %0d | %s\n", 
-                    idx, vec_all[idx][7:0], {8'd0, vec_all[idx][15:8]}, 
+                    idx, vec_all[idx][7:0], vec_all[idx][15:8], 
                     passed ? "PASS" : "FAIL");
         end
     end
@@ -74,10 +77,16 @@ module tb_shake256_top;
 
     task run_one_case(input integer idx);
     begin : execute_case 
+        rst_n = 1'b0;
+        start = 1'b0; 
+        absorb_block_valid = 1'b0;
+        repeat(5) @(negedge clk); 
+        rst_n = 1'b1;
+        repeat(2) @(negedge clk); 
         case_pass = 1'b1;
 
         msg_len_bytes       = vec_all[idx][7:0];
-        num_output_blocks   = {8'd0, vec_all[idx][15:8]};
+        num_output_blocks   = vec_all[idx][15:8];
         msg_block_in        = vec_all[idx][1103:16];
         exp_outs[0]         = vec_all[idx][2191:1104];
         exp_outs[1]         = vec_all[idx][3279:2192];
@@ -85,7 +94,7 @@ module tb_shake256_top;
         exp_outs[3]         = vec_all[idx][5455:4368];
         
         #1; 
-        num_input_blocks = need_block2 ? 16'd2 : 16'd1;
+        num_input_blocks = need_block2 ? 2 : 1;
 
         @(negedge clk); start = 1'b1; 
         @(negedge clk); start = 1'b0;
@@ -94,8 +103,12 @@ module tb_shake256_top;
             safe_wait(0); 
             if (timeout_flag) begin 
                 $display("[%0t] FAIL: Case %0d - Absorb Timeout", $time, idx);
-                error_count = error_count + 1; case_pass = 1'b0; write_case_result(idx, 0);
-                disable execute_case;
+                if (case_pass) begin 
+                    error_count = error_count + 1; 
+                    case_pass = 1'b0; 
+                end
+                write_case_result(idx, 0);
+                disable execute_case; 
             end
             @(negedge clk); 
             absorb_block_valid = 1'b1; 
@@ -106,18 +119,36 @@ module tb_shake256_top;
 
         for (b = 0; b < num_output_blocks; b = b + 1) begin
             safe_wait(1); 
-            if (timeout_flag || squeeze_data !== exp_outs[b]) begin 
-                $display("[%0t] FAIL: Case %0d - Block %0d Error", $time, idx, b);
-                error_count = error_count + 1; case_pass = 1'b0; write_case_result(idx, 0);
-                disable execute_case;
+            if (timeout_flag) begin 
+                $display("[%0t] FAIL: Case %0d - Squeeze Timeout", $time, idx);
+                if (case_pass) begin 
+                    error_count = error_count + 1; 
+                    case_pass = 1'b0; 
+                end
+                write_case_result(idx, 0);
+                disable execute_case; 
             end
+            
+            if (squeeze_data !== exp_outs[b]) begin 
+                $display("[%0t] FAIL: Case %0d - Block %0d Error", $time, idx, b);
+                if (case_pass) begin 
+                    error_count = error_count + 1; 
+                    case_pass = 1'b0; 
+                end
+            end
+
             if (b < num_output_blocks - 1) safe_wait(2); 
         end
 
         safe_wait(3);
         if (timeout_flag) begin 
             $display("[%0t] FAIL: Case %0d - Done Timeout", $time, idx);
-            error_count = error_count + 1; case_pass = 1'b0;
+            if (case_pass) begin 
+                error_count = error_count + 1; 
+                case_pass = 1'b0; 
+            end
+            write_case_result(idx, 0);
+            disable execute_case;
         end
 
         write_case_result(idx, case_pass);
@@ -130,18 +161,26 @@ module tb_shake256_top;
         squeeze_data_ready = 1'b1;
 
         report_fd = $fopen("C:/Users/Quan/Desktop/SHAKE256-FPGA/Implementation/testbench/result.log", "w");
-        spec_fd   = $fopen("C:/Users/Quan/Desktop/SHAKE256-FPGA/Implementation/vectors/tv_spec.txt", "r");
+        spec_fd = $fopen("C:/Users/Quan/Desktop/SHAKE256-FPGA/Implementation/vectors/tv_spec.txt", "r");
         
-        if (spec_fd == 0) begin $display("ERROR: Cannot open tv_spec.txt"); $finish; end
+        if (spec_fd == 0) begin 
+            $display("ERROR: Cannot open tv_spec.txt"); 
+            $finish; 
+        end
         status = $fgets(line_buffer, spec_fd);
         status = $sscanf(line_buffer, "tv_count=%d", tv_count_actual);
         $fclose(spec_fd);
 
-        if (tv_count_actual > MAX_BUFFER) begin $display("ERROR: tv_count exceeds MAX_BUFFER"); $finish; end
+        if (tv_count_actual > MAX_BUFFER) begin 
+            $display("ERROR: tv_count exceeds MAX_BUFFER"); 
+            $finish; 
+        end
         $readmemh("C:/Users/Quan/Desktop/SHAKE256-FPGA/Implementation/vectors/tv_all.mem", vec_all);
 
         #100;
-        repeat(5) @(negedge clk); rst_n = 1'b1; repeat(5) @(negedge clk);
+        repeat(5) @(negedge clk); 
+        rst_n = 1'b1; 
+        repeat(5) @(negedge clk);
 
         for (case_idx = 0; case_idx < tv_count_actual; case_idx = case_idx + 1) begin
             run_one_case(case_idx);
@@ -152,6 +191,7 @@ module tb_shake256_top;
         
         if (report_fd != 0) $fclose(report_fd);
         #100; 
+        
         $finish;
     end
 
