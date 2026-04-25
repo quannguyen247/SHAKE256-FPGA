@@ -18,8 +18,7 @@ module tb_shake256_top;
     reg [1087:0] exp_outs [0:3]; 
     reg [639:0] line_buffer;            
     
-    integer tv_count_actual, case_idx;
-    integer error_count, report_fd, spec_fd, status, b; 
+    integer tv_count_actual, case_idx, error_count, report_fd, spec_fd, status, b; 
     reg timeout_flag, case_pass;
 
     shake256_sponge #(
@@ -77,12 +76,13 @@ module tb_shake256_top;
 
     task run_one_case(input integer idx);
     begin : execute_case 
+        @(negedge clk); #1; 
         rst_n = 1'b0;
         start = 1'b0; 
         absorb_block_valid = 1'b0;
-        repeat(5) @(negedge clk); 
+        repeat(5) @(negedge clk); #1; 
         rst_n = 1'b1;
-        repeat(2) @(negedge clk); 
+        repeat(2) @(negedge clk); #1; 
         case_pass = 1'b1;
 
         msg_len_bytes       = vec_all[idx][7:0];
@@ -96,8 +96,8 @@ module tb_shake256_top;
         #1; 
         num_input_blocks = need_block2 ? 2 : 1;
 
-        @(negedge clk); start = 1'b1; 
-        @(negedge clk); start = 1'b0;
+        @(negedge clk); #1; start = 1'b1; 
+        @(negedge clk); #1; start = 1'b0;
 
         for (b = 0; b <= need_block2; b = b + 1) begin
             safe_wait(0); 
@@ -110,10 +110,10 @@ module tb_shake256_top;
                 write_case_result(idx, 0);
                 disable execute_case; 
             end
-            @(negedge clk); 
+            @(negedge clk); #1; 
             absorb_block_valid = 1'b1; 
             absorb_block_data = (b == 0) ? pad_block0_out : pad_block1_out;
-            @(negedge clk); 
+            @(negedge clk); #1; 
             absorb_block_valid = 1'b0; 
         end
 
@@ -178,7 +178,7 @@ module tb_shake256_top;
         $readmemh("C:/Users/Quan/Desktop/SHAKE256-FPGA/Implementation/vectors/tv_all.mem", vec_all);
 
         #100;
-        repeat(5) @(negedge clk); 
+        @(negedge clk); #1; 
         rst_n = 1'b1; 
         repeat(5) @(negedge clk);
 
