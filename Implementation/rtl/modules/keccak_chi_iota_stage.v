@@ -1,5 +1,5 @@
 `timescale 1ns / 1ps
-`include "../utils/keccak_defs.vh"
+`include "keccak_defs.vh"
 
 module keccak_chi_iota_stage(
     input wire [`KECCAK_STATE_WIDTH-1:0] state_in,

@@ -1,5 +1,5 @@
 `timescale 1ns / 1ps
-`include "../utils/keccak_defs.vh"
+`include "keccak_defs.vh"
 
 module shake256_pad_block(
     input wire [1087:0] msg_block_in,

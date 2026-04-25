@@ -1,12 +1,12 @@
 `timescale 1ns / 1ps
-`include "../utils/keccak_defs.vh"
+`include "keccak_defs.vh"
 
 module keccak_theta_rho_pi_stage (
     input wire [`KECCAK_STATE_WIDTH-1:0] state_in,
     output reg [`KECCAK_STATE_WIDTH-1:0] state_out
 );
 
-    `include "../utils/keccak_funcs.vh"
+    `include "keccak_funcs.vh"
 
     reg [63:0] A [0:24]; 
     reg [63:0] B [0:24]; 

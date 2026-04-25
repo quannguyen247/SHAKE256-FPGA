@@ -7,6 +7,6 @@ Implementation/SHAKE256.sim/
 Implementation/SHAKE256.runs/
 Implementation/SHAKE256.srcs/
 Implementation/SHAKE256.ioplanning/
+Implementation/testbench/result.log
 Implementation/vectors/*
 !Implementation/vectors/test_vectors.py
-testbench/result_log.txt

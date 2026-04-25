@@ -1,5 +1,5 @@
 `timescale 1ns / 1ps
-`include "../utils/keccak_defs.vh"
+`include "keccak_defs.vh"
 
 module keccak_permutation_pipeline (
     input wire clk,
@@ -10,7 +10,7 @@ module keccak_permutation_pipeline (
     output reg [`KECCAK_STATE_WIDTH-1:0] state_out
 );
 
-    `include "../utils/keccak_funcs.vh"
+    `include "keccak_funcs.vh"
     
     localparam ST_IDLE = 3'b001;
     localparam ST_TRP = 3'b010; 

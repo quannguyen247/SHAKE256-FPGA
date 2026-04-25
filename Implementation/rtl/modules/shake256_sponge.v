@@ -1,7 +1,9 @@
 `timescale 1ns / 1ps
-`include "../utils/keccak_defs.vh"
+`include "keccak_defs.vh"
 
-module shake256_sponge (
+module shake256_sponge #(
+    parameter BLOCK_WIDTH = 32
+)(
     input wire clk,
     input wire rst_n,
     
@@ -18,8 +20,8 @@ module shake256_sponge (
     // Global control
     input wire start,
     output wire done,
-    input wire [15:0] input_blocks,
-    input wire [15:0] output_blocks
+    input wire [BLOCK_WIDTH-1:0] input_blocks,
+    input wire [BLOCK_WIDTH-1:0] output_blocks
 );
 
     localparam [5:0] ST_IDLE    = 6'b000001;
@@ -31,7 +33,7 @@ module shake256_sponge (
 
     reg [5:0] curr_state, next_state;
     reg [`KECCAK_STATE_WIDTH-1:0] keccak_state;
-    reg [15:0] absorb_cnt, squeeze_cnt;
+    reg [BLOCK_WIDTH-1:0] absorb_cnt, squeeze_cnt;
     
     reg perm_start;
     wire perm_done;
@@ -65,7 +67,7 @@ module shake256_sponge (
             end
             ST_SQUEEZE: begin
                 if (squeeze_ready && squeeze_cnt > 0) begin
-                    if (squeeze_cnt == 16'd1) 
+                    if (squeeze_cnt == 1'b1) 
                         next_state = ST_DONE;
                     else 
                         next_state = ST_START;
@@ -79,8 +81,8 @@ module shake256_sponge (
     always @(posedge clk) begin
         if (!rst_n) begin
             keccak_state <= {`KECCAK_STATE_WIDTH{1'b0}};
-            absorb_cnt <= 16'd0;
-            squeeze_cnt <= 16'd0;
+            absorb_cnt <= 0;
+            squeeze_cnt <= 0;
             curr_state <= ST_IDLE;
             perm_start <= 1'b0;
         end else begin
@@ -97,11 +99,11 @@ module shake256_sponge (
                 ST_ABSORB: begin
                     if (absorb_valid) begin
                         keccak_state[1087:0] <= keccak_state[1087:0] ^ absorb_in;
-                        if (absorb_cnt > 0) absorb_cnt <= absorb_cnt - 16'd1;
+                        if (absorb_cnt > 0) absorb_cnt <= absorb_cnt - 1'b1;
                     end
                 end
                 ST_PERMUTE: if (perm_done) keccak_state <= perm_out;
-                ST_SQUEEZE: if (squeeze_ready && squeeze_cnt > 0) squeeze_cnt <= squeeze_cnt - 16'd1;
+                ST_SQUEEZE: if (squeeze_ready && squeeze_cnt > 0) squeeze_cnt <= squeeze_cnt - 1'b1;
             endcase
         end
     end
