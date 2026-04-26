@@ -1,185 +1,116 @@
 `timescale 1ns / 1ps
+`include "keccak_defs.vh"
 
-`include "../utils/keccak_defs.vh"
-
-// SHAKE256 Sponge Construction
-// Rate: 136 bytes (1088 bits)
-// Capacity: 512 bits
-//
-// FSM Flow:
-//   IDLE -> (start) -> ABSORB_BLOCK -> PERMUTE -> (more blocks?) -> SQUEEZE
-//   SQUEEZE -> (more output?) -> PERMUTE -> SQUEEZE -> DONE
-
-module shake256_sponge (
-    clk,
-    rst_n,
+module shake256_sponge #(
+    parameter BLOCK_WIDTH = 32
+)(
+    input wire clk,
+    input wire rst_n,
     
     // Absorb control
-    absorb_block_valid,
-    absorb_block_data,
-    absorb_block_ready,
+    input wire absorb_valid,
+    input wire [1087:0] absorb_in,
+    output wire absorb_ready,
+
+    // Squeeze control
+    input wire squeeze_ready,
+    output wire squeeze_valid,
+    output wire [1087:0] squeeze_out,
     
-    // Squeeze output
-    squeeze_data_valid,
-    squeeze_data,
-    squeeze_data_ready,
-    
-    // Control
-    start,
-    done,
-    num_input_blocks,
-    num_output_blocks
+    // Global control
+    input wire start,
+    output wire done,
+    input wire [BLOCK_WIDTH-1:0] input_blocks,
+    input wire [BLOCK_WIDTH-1:0] output_blocks
 );
 
-    input clk;
-    input rst_n;
-    
-    // Absorb: 136 bytes (1088 bits) per block
-    input absorb_block_valid;
-    input [1087:0] absorb_block_data;
-    output absorb_block_ready;
-    
-    // Squeeze: 136 bytes per block
-    output squeeze_data_valid;
-    output [1087:0] squeeze_data;
-    input squeeze_data_ready;
-    
-    // Control
-    input start;
-    output done;
-    input [15:0] num_input_blocks;   // Number of 136-byte input blocks to absorb
-    input [15:0] num_output_blocks;  // Number of 136-byte output blocks to squeeze
-    
-    // FSM states
-    parameter IDLE            = 3'd0;
-    parameter ABSORB_BLOCK    = 3'd1;
-    parameter PERMUTE_ABSORB  = 3'd2;
-    parameter SQUEEZE_LOOP    = 3'd3;
-    parameter PERMUTE_SQUEEZE = 3'd4;
-    parameter DONE_ST         = 3'd5;
-    
-    reg [2:0] state;
+    localparam [5:0] ST_IDLE    = 6'b000001;
+    localparam [5:0] ST_ABSORB  = 6'b000010;
+    localparam [5:0] ST_START   = 6'b000100;
+    localparam [5:0] ST_PERMUTE = 6'b001000;
+    localparam [5:0] ST_SQUEEZE = 6'b010000; 
+    localparam [5:0] ST_DONE    = 6'b100000;
 
+    reg [5:0] curr_state, next_state;
     reg [`KECCAK_STATE_WIDTH-1:0] keccak_state;
-
-    reg [15:0] absorb_count;
-    reg [15:0] squeeze_count;
-    reg [15:0] num_input_blocks_reg;
-    reg [15:0] num_output_blocks_reg;
-
-    reg perm_in_valid;
-    reg perm_waiting;
-    wire perm_out_valid;
-    wire [`KECCAK_STATE_WIDTH-1:0] perm_out;
+    reg [BLOCK_WIDTH-1:0] absorb_cnt, squeeze_cnt;
     
-    // Instantiate Keccak permutation pipeline
+    reg perm_start;
+    wire perm_done;
+    wire [`KECCAK_STATE_WIDTH-1:0] perm_out;
+
     keccak_permutation_pipeline u_keccak_perm (
         .clk(clk),
         .rst_n(rst_n),
-        .in_valid(perm_in_valid),
+        .in_valid(perm_start),
         .state_in(keccak_state),
-        .out_valid(perm_out_valid),
+        .out_valid(perm_done),
         .state_out(perm_out)
     );
-    
-    // Sequential logic
-    always @(posedge clk or negedge rst_n) begin
+
+    always @(*) begin
+        next_state = curr_state; 
+
+        case (curr_state)
+            ST_IDLE: if (start) next_state = ST_ABSORB;
+            ST_ABSORB: if (absorb_valid) next_state = ST_START;
+            ST_START: next_state = ST_PERMUTE;
+            ST_PERMUTE: begin
+                if (perm_done) begin
+                    if (absorb_cnt > 0) 
+                        next_state = ST_ABSORB;
+                    else if (squeeze_cnt > 0) 
+                        next_state = ST_SQUEEZE;
+                    else 
+                        next_state = ST_DONE;
+                end
+            end
+            ST_SQUEEZE: begin
+                if (squeeze_ready && squeeze_cnt > 0) begin
+                    if (squeeze_cnt == 1'b1) 
+                        next_state = ST_DONE;
+                    else 
+                        next_state = ST_START;
+                end
+            end
+            ST_DONE: next_state = ST_IDLE;
+            default: next_state = ST_IDLE;
+        endcase
+    end
+
+    always @(posedge clk) begin
         if (!rst_n) begin
-            state <= IDLE;
             keccak_state <= {`KECCAK_STATE_WIDTH{1'b0}};
-            absorb_count <= 16'h0000;
-            squeeze_count <= 16'h0000;
-            num_input_blocks_reg <= 16'h0000;
-            num_output_blocks_reg <= 16'h0000;
-            perm_in_valid <= 1'b0;
-            perm_waiting <= 1'b0;
+            absorb_cnt <= 0;
+            squeeze_cnt <= 0;
+            curr_state <= ST_IDLE;
+            perm_start <= 1'b0;
         end else begin
-            // One-cycle launch pulse for permutation core.
-            perm_in_valid <= 1'b0;
-
-            case (state)
-                IDLE: begin
+            curr_state <= next_state;
+            perm_start <= (next_state == ST_START);
+            case (curr_state)
+                ST_IDLE: begin
                     if (start) begin
-                        state <= ABSORB_BLOCK;
                         keccak_state <= {`KECCAK_STATE_WIDTH{1'b0}};
-                        absorb_count <= 16'h0000;
-                        squeeze_count <= 16'h0000;
-                        num_input_blocks_reg <= num_input_blocks;
-                        num_output_blocks_reg <= num_output_blocks;
-                        perm_waiting <= 1'b0;
+                        absorb_cnt <= input_blocks;
+                        squeeze_cnt <= output_blocks;
                     end
                 end
-
-                ABSORB_BLOCK: begin
-                    if (absorb_block_valid) begin
-                        // XOR input block into rate (lower 1088 bits).
-                        keccak_state[1087:0] <= keccak_state[1087:0] ^ absorb_block_data;
-                        absorb_count <= absorb_count + 16'h0001;
-
-                        // After each block, apply permutation.
-                        state <= PERMUTE_ABSORB;
-                        perm_in_valid <= 1'b1;
-                        perm_waiting <= 1'b1;
+                ST_ABSORB: begin
+                    if (absorb_valid) begin
+                        keccak_state[1087:0] <= keccak_state[1087:0] ^ absorb_in;
+                        if (absorb_cnt > 0) absorb_cnt <= absorb_cnt - 1'b1;
                     end
                 end
-
-                PERMUTE_ABSORB: begin
-                    if (perm_waiting && perm_out_valid) begin
-                        keccak_state <= perm_out;
-                        perm_waiting <= 1'b0;
-
-                        if (absorb_count >= num_input_blocks_reg) begin
-                            squeeze_count <= 16'h0000;
-                            if (num_output_blocks_reg == 16'h0000) begin
-                                state <= DONE_ST;
-                            end else begin
-                                state <= SQUEEZE_LOOP;
-                            end
-                        end else begin
-                            state <= ABSORB_BLOCK;
-                        end
-                    end
-                end
-
-                SQUEEZE_LOOP: begin
-                    if (squeeze_data_ready && (squeeze_count < num_output_blocks_reg)) begin
-                        squeeze_count <= squeeze_count + 16'h0001;
-
-                        if (squeeze_count + 16'h0001 >= num_output_blocks_reg) begin
-                            state <= DONE_ST;
-                        end else begin
-                            state <= PERMUTE_SQUEEZE;
-                            perm_in_valid <= 1'b1;
-                            perm_waiting <= 1'b1;
-                        end
-                    end
-                end
-
-                PERMUTE_SQUEEZE: begin
-                    if (perm_waiting && perm_out_valid) begin
-                        keccak_state <= perm_out;
-                        perm_waiting <= 1'b0;
-                        state <= SQUEEZE_LOOP;
-                    end
-                end
-
-                DONE_ST: begin
-                    state <= IDLE;
-                    perm_waiting <= 1'b0;
-                end
-
-                default: begin
-                    state <= IDLE;
-                    perm_waiting <= 1'b0;
-                end
+                ST_PERMUTE: if (perm_done) keccak_state <= perm_out;
+                ST_SQUEEZE: if (squeeze_ready && squeeze_cnt > 0) squeeze_cnt <= squeeze_cnt - 1'b1;
             endcase
         end
     end
-    
-    // Output logic
-    assign absorb_block_ready = (state == ABSORB_BLOCK);
-    assign squeeze_data_valid = (state == SQUEEZE_LOOP) && (squeeze_count < num_output_blocks_reg);
-    assign squeeze_data = keccak_state[1087:0];  // Output lower 1088 bits (136 bytes)
-    assign done = (state == DONE_ST);
+
+    assign absorb_ready = (curr_state == ST_ABSORB);
+    assign squeeze_valid = (curr_state == ST_SQUEEZE) && (squeeze_cnt > 0);
+    assign squeeze_out = keccak_state[1087:0]; 
+    assign done = (curr_state == ST_DONE);
 
 endmodule

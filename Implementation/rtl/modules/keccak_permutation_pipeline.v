@@ -1,71 +1,82 @@
 `timescale 1ns / 1ps
+`include "keccak_defs.vh"
 
-`include "../utils/keccak_defs.vh"
-
-(* keep_hierarchy = "yes" *)
 module keccak_permutation_pipeline (
-    clk,
-    rst_n,
-    in_valid,
-    state_in,
-    out_valid,
-    state_out
+    input wire clk,
+    input wire rst_n,
+    input wire in_valid,
+    input wire [`KECCAK_STATE_WIDTH-1:0] state_in,
+    output reg out_valid,
+    output reg [`KECCAK_STATE_WIDTH-1:0] state_out
 );
-    input clk;
-    input rst_n;
-    input in_valid;
-    input [`KECCAK_STATE_WIDTH-1:0] state_in;
-    output out_valid;
-    output [`KECCAK_STATE_WIDTH-1:0] state_out;
 
-    // Iterative permutation core: one round per cycle.
-    // This reduces LUT usage significantly versus 24-round unrolled datapaths.
-    reg [`KECCAK_STATE_WIDTH-1:0] state_reg;
-    reg [`KECCAK_STATE_WIDTH-1:0] state_out_reg;
-    reg [4:0] round_idx_reg;
-    reg busy_reg;
-    reg out_valid_reg;
+    `include "keccak_funcs.vh"
+    
+    localparam ST_IDLE = 3'b001;
+    localparam ST_TRP = 3'b010; 
+    localparam ST_CI = 3'b100; 
 
-    wire [`KECCAK_STATE_WIDTH-1:0] round_state_next;
+    reg [`KECCAK_STATE_WIDTH-1:0] state_reg, trp_mid_reg;
+    wire [`KECCAK_STATE_WIDTH-1:0] trp_next, ci_next;
+    reg [4:0] round_ctr;
+    reg [2:0] curr_state, next_state;
 
-    (* keep_hierarchy = "yes" *)
-    keccak_round u_round (
+    keccak_theta_rho_pi_stage u_stage_trp (
         .state_in(state_reg),
-        .round_idx(round_idx_reg),
-        .state_out(round_state_next)
+        .state_out(trp_next)
     );
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            state_reg <= {`KECCAK_STATE_WIDTH{1'b0}};
-            state_out_reg <= {`KECCAK_STATE_WIDTH{1'b0}};
-            round_idx_reg <= 5'd0;
-            busy_reg <= 1'b0;
-            out_valid_reg <= 1'b0;
-        end else begin
-            // out_valid is a one-cycle pulse when a permutation completes.
-            out_valid_reg <= 1'b0;
+    keccak_chi_iota_stage u_stage_ci (
+        .state_in(trp_mid_reg),
+        .round_const(round_constant(round_ctr)),
+        .state_out(ci_next)
+    );
 
-            if (busy_reg) begin
-                state_reg <= round_state_next;
-
-                if (round_idx_reg == (`KECCAK_NUM_ROUNDS - 1)) begin
-                    busy_reg <= 1'b0;
-                    round_idx_reg <= 5'd0;
-                    out_valid_reg <= 1'b1;
-                    state_out_reg <= round_state_next;
-                end else begin
-                    round_idx_reg <= round_idx_reg + 5'd1;
-                end
-            end else if (in_valid) begin
-                state_reg <= state_in;
-                round_idx_reg <= 5'd0;
-                busy_reg <= 1'b1;
+    always @(*) begin
+        next_state = curr_state;
+        case (curr_state)
+            ST_IDLE: if (in_valid) next_state = ST_TRP;
+            ST_TRP: next_state = ST_CI;
+            ST_CI: begin
+                if (round_ctr == (`KECCAK_NUM_ROUNDS - 1))
+                    next_state = ST_IDLE;
+                else
+                    next_state = ST_TRP;
             end
-        end
+            default: next_state = ST_IDLE;
+        endcase
     end
 
-    assign out_valid = out_valid_reg;
-    assign state_out = state_out_reg;
+    always @(posedge clk) begin
+        if (!rst_n) begin
+            curr_state <= ST_IDLE;
+            state_reg <= {`KECCAK_STATE_WIDTH{1'b0}};
+            trp_mid_reg <= {`KECCAK_STATE_WIDTH{1'b0}};
+            state_out <= {`KECCAK_STATE_WIDTH{1'b0}};
+            round_ctr <= 5'd0;
+            out_valid <= 1'b0;
+        end else begin
+            curr_state <= next_state;
+            out_valid <= 1'b0; 
+            case (next_state)
+                ST_IDLE: begin
+                    if (curr_state == ST_CI) begin
+                        out_valid <= 1'b1;
+                        state_out <= ci_next; 
+                    end
+                end
+                ST_TRP: begin
+                    if (curr_state == ST_IDLE) begin
+                        state_reg <= state_in;
+                        round_ctr <= 5'd0;
+                    end else if (curr_state == ST_CI) begin
+                        state_reg <= ci_next;
+                        round_ctr <= round_ctr + 5'd1;
+                    end
+                end
+                ST_CI: trp_mid_reg <= trp_next;
+            endcase
+        end
+    end
 
 endmodule
