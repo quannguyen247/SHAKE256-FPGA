@@ -29,7 +29,6 @@ def gen_cases(random_cases):
 
     # Cac truong hop vet can
     for m in range(RATE + 1):
-        # Luân phiên yêu cầu số lượng Squeeze từ 1 đến MAX_BLOCK
         yield make(bytes((j * 29 + m * 7) & 0xFF for j in range(m)), (m % MAX_BLOCK) + 1)
 
     # Cac truong hop random

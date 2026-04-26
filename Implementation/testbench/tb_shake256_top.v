@@ -18,7 +18,7 @@ module tb_shake256_top;
     reg [1087:0] exp_outs [0:3]; 
     reg [639:0] line_buffer;            
     
-    integer tv_count_actual, case_idx, error_count, report_fd, spec_fd, status, b; 
+    integer i, tv_count_actual, case_idx, error_count, report_fd, spec_fd; 
     reg timeout_flag, case_pass;
 
     shake256_sponge #(
@@ -76,13 +76,13 @@ module tb_shake256_top;
 
     task run_one_case(input integer idx);
     begin : execute_case 
-        @(negedge clk); #1; 
+        @(posedge clk); #0.5; 
         rst_n = 1'b0;
         start = 1'b0; 
         absorb_block_valid = 1'b0;
-        repeat(5) @(negedge clk); #1; 
+        repeat(5) @(posedge clk); #0.5; 
         rst_n = 1'b1;
-        repeat(2) @(negedge clk); #1; 
+        repeat(2) @(posedge clk); #0.5; 
         case_pass = 1'b1;
 
         msg_len_bytes       = vec_all[idx][7:0];
@@ -93,14 +93,15 @@ module tb_shake256_top;
         exp_outs[2]         = vec_all[idx][4367:3280];
         exp_outs[3]         = vec_all[idx][5455:4368];
         
-        #1; 
+        #0.5; 
         num_input_blocks = need_block2 ? 2 : 1;
 
-        @(negedge clk); #1; start = 1'b1; 
-        @(negedge clk); #1; start = 1'b0;
+        @(posedge clk); #0.5; start = 1'b1; 
+        @(posedge clk); #0.5; start = 1'b0;
 
-        for (b = 0; b <= need_block2; b = b + 1) begin
+        for (i = 0; i <= need_block2; i = i + 1) begin
             safe_wait(0); 
+            
             if (timeout_flag) begin 
                 $display("[%0t] FAIL: Case %0d - Absorb Timeout", $time, idx);
                 if (case_pass) begin 
@@ -110,15 +111,17 @@ module tb_shake256_top;
                 write_case_result(idx, 0);
                 disable execute_case; 
             end
-            @(negedge clk); #1; 
+            
+            @(posedge clk); #0.5; 
             absorb_block_valid = 1'b1; 
-            absorb_block_data = (b == 0) ? pad_block0_out : pad_block1_out;
-            @(negedge clk); #1; 
+            absorb_block_data = (i == 0) ? pad_block0_out : pad_block1_out;
+            @(posedge clk); #0.5; 
             absorb_block_valid = 1'b0; 
         end
 
-        for (b = 0; b < num_output_blocks; b = b + 1) begin
+        for (i = 0; i < num_output_blocks; i = i + 1) begin
             safe_wait(1); 
+            
             if (timeout_flag) begin 
                 $display("[%0t] FAIL: Case %0d - Squeeze Timeout", $time, idx);
                 if (case_pass) begin 
@@ -129,15 +132,16 @@ module tb_shake256_top;
                 disable execute_case; 
             end
             
-            if (squeeze_data !== exp_outs[b]) begin 
-                $display("[%0t] FAIL: Case %0d - Block %0d Error", $time, idx, b);
+            @(posedge clk); #0.5; 
+            if (squeeze_data !== exp_outs[i]) begin 
+                $display("[%0t] FAIL: Case %0d - Block %0d Error", $time, idx, i);
                 if (case_pass) begin 
                     error_count = error_count + 1; 
                     case_pass = 1'b0; 
                 end
             end
 
-            if (b < num_output_blocks - 1) safe_wait(2); 
+            if (i < num_output_blocks - 1) safe_wait(2); 
         end
 
         safe_wait(3);
@@ -152,7 +156,7 @@ module tb_shake256_top;
         end
 
         write_case_result(idx, case_pass);
-        repeat(2) @(negedge clk); 
+        repeat(2) @(posedge clk); 
     end
     endtask
 
@@ -167,8 +171,9 @@ module tb_shake256_top;
             $display("ERROR: Cannot open tv_spec.txt"); 
             $finish; 
         end
-        status = $fgets(line_buffer, spec_fd);
-        status = $sscanf(line_buffer, "tv_count=%d", tv_count_actual);
+        
+        $fgets(line_buffer, spec_fd);
+        $sscanf(line_buffer, "tv_count=%d", tv_count_actual);
         $fclose(spec_fd);
 
         if (tv_count_actual > MAX_BUFFER) begin 
@@ -178,9 +183,9 @@ module tb_shake256_top;
         $readmemh("C:/Users/Quan/Desktop/SHAKE256-FPGA/Implementation/vectors/tv_all.mem", vec_all);
 
         #100;
-        @(negedge clk); #1; 
+        @(posedge clk); #0.5; 
         rst_n = 1'b1; 
-        repeat(5) @(negedge clk);
+        repeat(5) @(posedge clk);
 
         for (case_idx = 0; case_idx < tv_count_actual; case_idx = case_idx + 1) begin
             run_one_case(case_idx);
