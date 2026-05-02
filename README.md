@@ -1,101 +1,174 @@
-*** SHAKE256 FPGA/IP Core — Professional README ***
+# SHAKE256 FPGA / IP Core
 
-**Author:** Nguyen Dong Quan
+SHAKE256 FPGA is a synthesizable Verilog RTL implementation of the SHAKE256 sponge construction and the Keccak-f[1600] permutation. It is delivered as an IP-style core with a verification environment and a Python vector generator.
 
-This repository provides a synthesizable Verilog implementation of the SHAKE256 sponge construction and the Keccak-f[1600] permutation, delivered as an IP core together with a verification environment. The codebase is intended for FPGA prototyping and research; it is provided as RTL/IP rather than a board-ready top-level design.
+The repository is organized as an out-of-context (OOC) Vivado project, so it is intended for standalone RTL synthesis, simulation, and integration into a larger system. It is not a board-ready design with a complete board-specific wrapper and pinout.
 
-IMPORTANT: project status
--------------------------
-- This repository exposes an IP-style core (module `shake256_sponge` and supporting modules under `Implementation/rtl/modules/`).
-- The project does NOT include a production top-level wrapper for a specific board, and it does NOT include a board-specific XDC (pinout/clock constraints) required to generate a ready-to-program bitstream. Integrators must provide a top-level wrapper and XDC for their target board.
+## Key Facts
 
-Repository layout
------------------
-Implementation/
-- constraints/        — place board XDCs here (not provided)
-- rtl/
-  - modules/          — keccak permutation stages, sponge and padding modules
-  - utils/            — defines and helper headers (`keccak_defs.vh`, `keccak_funcs.vh`)
-- testbench/          — `tb_shake256_top.v` and supporting test files
-- vectors/            — `test_vectors.py` and generated `.mem` files
+- Top design: [Implementation/rtl/modules/shake256_sponge.v](Implementation/rtl/modules/shake256_sponge.v)
+- Top testbench: [Implementation/testbench/tb_shake256_top.v](Implementation/testbench/tb_shake256_top.v)
+- Vector generator: [Implementation/vectors/test_vectors.py](Implementation/vectors/test_vectors.py)
+- Vivado version: 2025.2.1 (64-bit)
+- Target part in the project: `xc7a100tcsg324-1`
+- Synthesis mode: out-of-context (OOC)
+- Verification: the current regression flow has been run successfully in both behavioral simulation and post-implementation timing simulation
 
-What this repo contains
------------------------
-- Synthesizable Verilog RTL for the SHAKE256 core and supporting modules:
-  - `shake256_sponge.v` — sponge controller with absorb/squeeze handshake (1088-bit rate)
-  - `keccak_permutation_pipeline.v` — permutation pipeline wrapper
-  - Stage modules (Theta/Rho/Pi/Chi/Iota) under `Implementation/rtl/modules/`
-- Verification environment and KAT vector generator (`Implementation/vectors/test_vectors.py`).
+## Project Status
 
-What is intentionally not provided
-----------------------------------
-- Board-level top wrapper to adapt the 1088-bit datapath to physical pins
-- Board-specific XDC constraints for any particular Artix-7 development board
-- A pre-built bitstream or board programming scripts
+This repository provides an IP core for SHAKE256 research, verification, and reuse. It intentionally does not ship with:
 
-Quick start (verification)
---------------------------
-Prerequisites: Vivado (for xsim/synthesis) and Python 3.x.
+- a production board wrapper
+- board-specific pinout constraints
+- a ready-to-program bitstream for a particular FPGA board
 
-1) Generate known-answer test vectors:
+The constraint file [Implementation/constraints/shake256.xdc](Implementation/constraints/shake256.xdc) currently defines a 5 ns clock and switching-activity assumptions for analysis. It is not a board pinout file.
+
+## Directory Layout
+
+- [Implementation/rtl/modules/](Implementation/rtl/modules/) - core RTL modules
+- [Implementation/rtl/utils/](Implementation/rtl/utils/) - shared Verilog defines and helper functions
+- [Implementation/testbench/](Implementation/testbench/) - top-level testbench and simulation logs
+- [Implementation/vectors/](Implementation/vectors/) - vector generator and generated test files
+- [Implementation/constraints/](Implementation/constraints/) - Vivado XDC constraints
+- [Implementation/SHAKE256.xpr](Implementation/SHAKE256.xpr) - Vivado project file
+- [Implementation/SHAKE256.runs/](Implementation/SHAKE256.runs/) - synthesis and implementation runs
+- [Implementation/SHAKE256.sim/](Implementation/SHAKE256.sim/) - simulation outputs
+
+## RTL Architecture
+
+### `shake256_sponge.v`
+
+The top design module [Implementation/rtl/modules/shake256_sponge.v](Implementation/rtl/modules/shake256_sponge.v) controls the full SHAKE256 flow with a simple handshake interface:
+
+- `start` / `done`
+- `input_blocks` / `output_blocks`
+- `absorb_valid` / `absorb_ready`
+- `squeeze_valid` / `squeeze_ready`
+- 1088-bit absorb and squeeze data paths
+
+Internal control flow:
+
+1. `ST_IDLE` - wait for `start`
+2. `ST_ABSORB` - accept padded absorb blocks and XOR them into the Keccak state
+3. `ST_START` - launch the permutation pipeline
+4. `ST_PERMUTE` - run the Keccak-f[1600] permutation
+5. `ST_SQUEEZE` - present 1088-bit rate data
+6. `ST_DONE` - finish the transaction and return to idle
+
+### `keccak_permutation_pipeline.v`
+
+The Keccak-f[1600] permutation is implemented as a 2-stage pipeline:
+
+- Stage 1: `theta + rho + pi`
+- Stage 2: `chi + iota`
+
+This pipeline operates on the full 1600-bit Keccak state, which is 25 lanes of 64 bits each. The design follows the 24-round Keccak-f[1600] schedule.
+
+### `keccak_theta_rho_pi_stage.v`
+
+This stage performs the first three Keccak steps:
+
+- `theta` - column parity and state diffusion
+- `rho` - lane rotations
+- `pi` - lane permutation
+
+### `keccak_chi_iota_stage.v`
+
+This stage performs the final two Keccak steps:
+
+- `chi` - non-linear row mixing
+- `iota` - XOR of the round constant into lane `A[0,0]`
+
+### `shake256_pad_block.v`
+
+The padding helper [Implementation/rtl/modules/shake256_pad_block.v](Implementation/rtl/modules/shake256_pad_block.v) builds SHAKE256 multi-rate padded blocks:
+
+- inserts the `0x1F` domain-separation byte
+- sets the final `0x80` bit
+- raises `need_block2` when the message fills the full 136-byte rate block
+
+## Test Vector Generation
+
+The vector generator [Implementation/vectors/test_vectors.py](Implementation/vectors/test_vectors.py) uses Python's `hashlib.shake_256` as the reference model.
+
+### How to run
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python Implementation\vectors\test_vectors.py
+python Implementation/vectors/test_vectors.py
+python Implementation/vectors/test_vectors.py clear
+python Implementation/vectors/test_vectors.py 1000
 ```
 
-2) Run RTL simulation (Vivado xsim recommended):
+### Script behavior
 
-- Open `Implementation/SHAKE256.xpr` in Vivado
-- Set `tb_shake256_top.v` as the simulation top module
-- Run Behavioral Simulation; the testbench writes results to `testbench/result_log.txt`.
+- No argument: generate the default vector set.
+- `clear`: delete generated `tv_*` files in [Implementation/vectors/](Implementation/vectors/), including `tv_all.mem` and `tv_spec.txt`.
+- Integer argument `N`: keep the 143 base cases and add random test cases until the total count reaches `N` when `N > 143`.
 
-Integration guidance — turning the IP into a board design
--------------------------------------------------------
-Because the sponge rate is wide (1088 bits), you must provide a top-level wrapper when targeting real hardware:
+The default base set contains 143 cases:
 
-• Serializer / Deserializer wrapper (bare FPGA I/O):
-- Shift data in/out over a narrower external bus (for example 32/64-bit) and assemble/disassemble 1088-bit blocks.
-- Provide control registers (start/done) and a small handshake FIFO between the serializer and the IP core.
+- 4 fixed cases
+- 2 XOF proof cases
+- 137 exhaustive message-length cases covering lengths 0 through 136 bytes
 
-• AXI4-Stream / AXI4-Lite wrapper (SoC integration):
-- Wrap the core with an AXI4-Stream sink/source for data and an AXI4‑Lite register interface for control/status.
+For example, `python Implementation/vectors/test_vectors.py 1000` generates 1000 total cases by appending random cases after the 143 base cases.
 
-• Example integration checklist:
-  1. Implement a serializer or AXI wrapper module.
-  2. Create a top-level that instantiates the wrapper and `shake256_sponge`.
-  3. Add board XDC: clocks, I/O pin assignments, IOSTANDARD and placement constraints.
-  4. Validate with simulation (functional) before synthesis.
+### Generated files
 
-Module summary (short)
-----------------------
-`shake256_sponge` — main IP integration point:
-- `clk, rst_n`
-- `absorb_block_valid` (in), `absorb_block_data` (in, [1087:0])
-- `absorb_block_ready` (out)
-- `squeeze_data_valid` (out), `squeeze_data` (out, [1087:0])
-- `squeeze_data_ready` (in), `start`/`done`, `num_input_blocks`, `num_output_blocks`.
+- `tv_all.mem` - hex-encoded test data for `$readmemh`
+- `tv_spec.txt` - metadata used by the testbench
 
-`keccak_permutation_pipeline` — permutation engine:
-- `clk, rst_n, in_valid, state_in[1599:0], out_valid, state_out[1599:0]`.
+The metadata file currently records fields such as:
 
-Verification & recommended workflows
------------------------------------
-- Use the included testbench and generated KAT vectors for deterministic functional verification.
-- Export SAIF/VCD from simulation and import into Vivado Power Analysis for realistic power estimates.
-- Add a CI/regression script to run the vector generator and a simulator, report PASS/FAIL automatically.
+- `tv_count`
+- `rate_bytes`
+- `max_squeeze_blocks`
+- `fixed_cases`
+- `xof_proof_cases`
+- `exhaustive_length_cases`
+- `random_cases`
 
-Known limitations and notes
---------------------------
-- This repository provides an IP core, not a board-ready design. Integrators must create an appropriate wrapper and XDC for target hardware.
-- The current testbench assumes synchronous handshake semantics; when integrating, ensure that upstream interfaces meet the core's setup/hold requirements.
+The testbench reads `tv_spec.txt` to learn how many test cases to execute and uses `tv_all.mem` as the source of expected input and output data.
 
-License and references
-----------------------
-- See `LICENSE` for terms.
-- Reference: FIPS 202 (SHA-3 family), Keccak specification and academic literature.
+## Testbench
 
-Contributions and contact
--------------------------
-Issues and pull requests are welcome. For non-public queries, open an issue describing the topic and we can coordinate further.
+The top testbench [Implementation/testbench/tb_shake256_top.v](Implementation/testbench/tb_shake256_top.v) instantiates the SHAKE256 sponge core and the padding helper, then executes the generated test vectors one by one.
+
+It:
+
+- instantiates `shake256_sponge`
+- instantiates `shake256_pad_block`
+- reads `tv_spec.txt` and `tv_all.mem`
+- runs each case sequentially
+- writes the simulation report to `Implementation/testbench/result.log`
+
+Current verification parameters include:
+
+- `TIMEOUT_CYCLES = 1836` per test case
+- `MAX_BUFFER = 1024`
+- support for multi-block absorb and multi-block squeeze flows
+
+## Vivado Flow
+
+1. Open [Implementation/SHAKE256.xpr](Implementation/SHAKE256.xpr)
+2. Set `tb_shake256_top` as the simulation top
+3. Run Behavioral Simulation for functional verification
+4. Run Implementation and Post-Implementation Timing Simulation for timing validation
+
+The current Vivado project is configured with:
+
+- Product Version: Vivado 2025.2.1 (64-bit)
+- Design top: `shake256_sponge`
+- Simulation top: `tb_shake256_top`
+- Synthesis mode: `out_of_context`
+
+## Notes
+
+- This repository is IP-style RTL, not a complete board-level design.
+- If you want to integrate it into a real FPGA system, you should add your own wrapper, serializer/deserializer, or bus interface.
+- The current vector set and testbench are designed for deterministic regression and easy re-run of results.
+
+## License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
