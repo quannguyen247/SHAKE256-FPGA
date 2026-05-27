@@ -1,10 +1,10 @@
 `timescale 1ns / 1ps
 
 module tb_permutation;
-    reg clk, rst_n, in_valid;
-    reg [1599:0] state_in;
-    wire [1599:0] state_out;
-    wire out_valid;
+    logic clk, rst_n, in_valid;
+    logic [1599:0] state_in;
+    logic [1599:0] state_out;
+    logic out_valid;
 
     keccak_permutation_pipeline u_perm (
         .clk(clk), .rst_n(rst_n), .in_valid(in_valid),
