@@ -29,7 +29,6 @@ module shake256_axi4_stream #(
 
     reg [7:0] state, next_state;
     reg [1087:0] msg_buf;
-    reg [1087:0] sq_buf;
     reg [7:0] byte_cnt;
     reg [7:0] msg_len;
     reg [7:0] send_cnt;
@@ -88,7 +87,7 @@ module shake256_axi4_stream #(
     assign abs_fire = abs_valid && abs_ready;
     assign send_last_byte = (send_cnt == 8'd135);
     assign send_last_block = (sq_blk_cnt == 32'd1);
-    assign m_axis_tdata = sq_buf[(send_cnt*8) +: 8];
+    assign m_axis_tdata = sq_out[(send_cnt*8) +: 8];
     assign m_axis_tlast = (state == ST_SEND) && send_last_block && send_last_byte;
 
     always @(*) begin
@@ -96,27 +95,21 @@ module shake256_axi4_stream #(
         case (state)
             ST_IDLE: begin
                 if (s_axis_fire) begin
-                    if (s_axis_tlast)
-                        next_state = ST_START;
-                    else
-                        next_state = ST_RECV;
+                    if (s_axis_tlast) next_state = ST_START;
+                    else next_state = ST_RECV;
                 end
             end
             ST_RECV: if (s_axis_fire && s_axis_tlast) next_state = ST_START;
             ST_START: next_state = ST_ABSORB;
             ST_ABSORB: begin
-                if (abs_fire) begin
-                    if (!need_blk2 || abs_idx == 1'b1)
-                        next_state = ST_SQ_WAIT;
-                end
+                if (abs_fire) 
+                    if (!need_blk2 || abs_idx == 1'b1) next_state = ST_SQ_WAIT;
             end
             ST_SQ_WAIT: if (sq_valid) next_state = ST_SEND;
             ST_SEND: begin
                 if (m_axis_fire && send_last_byte) begin
-                    if (send_last_block)
-                        next_state = ST_DONE;
-                    else
-                        next_state = ST_SQ_ACK;
+                    if (send_last_block) next_state = ST_DONE;
+                    else next_state = ST_SQ_ACK;
                 end
             end
             ST_SQ_ACK: next_state = ST_SQ_WAIT;
@@ -129,7 +122,6 @@ module shake256_axi4_stream #(
         if (!aresetn) begin
             state <= ST_IDLE;
             msg_buf <= 1088'h0;
-            sq_buf <= 1088'h0;
             byte_cnt <= 8'd0;
             msg_len <= 8'd0;
             send_cnt <= 8'd0;
@@ -149,7 +141,6 @@ module shake256_axi4_stream #(
             case (state)
                 ST_IDLE: begin
                     msg_buf <= 1088'h0;
-                    sq_buf <= 1088'h0;
                     byte_cnt <= 8'd0;
                     msg_len <= 8'd0;
                     send_cnt <= 8'd0;
@@ -159,19 +150,15 @@ module shake256_axi4_stream #(
                     abs_valid <= 1'b0;
                     if (s_axis_fire) begin
                         msg_buf[7:0] <= s_axis_tdata;
-                        if (s_axis_tlast) 
-                            msg_len <= 8'd1;
-                        else 
-                            byte_cnt <= 8'd1;
+                        if (s_axis_tlast) msg_len <= 8'd1;
+                        else byte_cnt <= 8'd1;
                     end
                 end
                 ST_RECV: begin
                     if (s_axis_fire) begin
                         msg_buf[(byte_cnt*8) +: 8] <= s_axis_tdata;
-                        if (s_axis_tlast) 
-                            msg_len <= byte_cnt + 8'd1;
-                        else 
-                            byte_cnt <= byte_cnt + 8'd1;
+                        if (s_axis_tlast) msg_len <= byte_cnt + 8'd1;
+                        else byte_cnt <= byte_cnt + 8'd1;
                     end
                 end
                 ST_START: begin
@@ -182,9 +169,8 @@ module shake256_axi4_stream #(
                     done_seen <= 1'b0;
                 end
                 ST_ABSORB: begin
-                    if (!abs_valid) begin
-                        abs_valid <= 1'b1;
-                    end else if (abs_fire) begin
+                    if (!abs_valid) abs_valid <= 1'b1;
+                    else if (abs_fire) begin
                         if (need_blk2 && abs_idx == 1'b0) begin
                             abs_idx <= 1'b1;
                             abs_valid <= 1'b1;
@@ -193,17 +179,11 @@ module shake256_axi4_stream #(
                         end
                     end
                 end
-                ST_SQ_WAIT: begin
-                    send_cnt <= 8'd0;
-                    if (sq_valid)
-                        sq_buf <= sq_out;
-                end
+                ST_SQ_WAIT: send_cnt <= 8'd0;
                 ST_SEND: begin
                     if (m_axis_fire) begin
-                        if (send_last_byte) 
-                            sq_ready <= 1'b1;
-                        else 
-                            send_cnt <= send_cnt + 8'd1;
+                        if (send_last_byte) sq_ready <= 1'b1;
+                        else send_cnt <= send_cnt + 8'd1;
                     end
                 end
                 ST_SQ_ACK: begin
