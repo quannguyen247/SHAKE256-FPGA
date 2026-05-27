@@ -6,20 +6,20 @@ module tb_shake256_top;
     localparam integer TIMEOUT_CYCLES = 1836; 
     localparam integer MAX_BUFFER = 1024; 
 
-    reg clk, rst_n, start, absorb_block_valid, squeeze_data_ready;
-    reg [7:0] msg_len_bytes;
-    reg [BLK_WIDTH-1:0] num_input_blocks, num_output_blocks;
-    reg [1087:0] absorb_block_data, msg_block_in;
+    logic clk, rst_n, start, absorb_block_valid, squeeze_data_ready;
+    logic [7:0] msg_len_bytes;
+    logic [BLK_WIDTH-1:0] num_input_blocks, num_output_blocks;
+    logic [1087:0] absorb_block_data, msg_block_in;
     
-    wire done, absorb_block_ready, squeeze_data_valid, need_block2;
-    wire [1087:0] squeeze_data, pad_block0_out, pad_block1_out;
+    logic done, absorb_block_ready, squeeze_data_valid, need_block2;
+    logic [1087:0] squeeze_data, pad_block0_out, pad_block1_out;
 
-    reg [5455:0] vec_all [0:MAX_BUFFER-1]; 
-    reg [1087:0] exp_outs [0:3]; 
-    reg [639:0] line_buffer;            
+    logic [5455:0] vec_all [0:MAX_BUFFER-1]; 
+    logic [1087:0] exp_outs [0:3]; 
+    logic [639:0] line_buffer;            
     
-    integer i, tv_count_actual, case_idx, error_count, report_fd, spec_fd; 
-    reg timeout_flag, case_pass;
+    int i, tv_count_actual, case_idx, error_count, report_fd, spec_fd; 
+    logic timeout_flag, case_pass;
 
     shake256_sponge #(
         .BLOCK_WIDTH(BLK_WIDTH)
@@ -160,12 +160,27 @@ module tb_shake256_top;
     end
     endtask
 
+    string tv_dir;
+    int fd;
+
     initial begin
+        fd = $fopen("../../../../vector/tv_spec.txt", "r");
+        if (fd != 0) begin
+            $fclose(fd);
+            tv_dir = "../../../../vector";
+        end else begin
+            tv_dir = "../../../../../vector";
+        end
+
         error_count = 0; rst_n = 0; start = 0; absorb_block_valid = 0; 
         squeeze_data_ready = 1'b1;
 
-        report_fd = $fopen("C:/Users/Quan/Desktop/SHAKE256-FPGA/Implementation/testbench/result.log", "w");
-        spec_fd = $fopen("C:/Users/Quan/Desktop/SHAKE256-FPGA/Implementation/vectors/tv_spec.txt", "r");
+        if (tv_dir == ".") begin
+            report_fd = $fopen("result.log", "w");
+        end else begin
+            report_fd = $fopen({tv_dir, "/../testbench/result.log"}, "w");
+        end
+        spec_fd = $fopen({tv_dir, "/tv_spec.txt"}, "r");
         
         if (spec_fd == 0) begin 
             $display("ERROR: Cannot open tv_spec.txt"); 
@@ -180,7 +195,7 @@ module tb_shake256_top;
             $display("ERROR: tv_count exceeds MAX_BUFFER"); 
             $finish; 
         end
-        $readmemh("C:/Users/Quan/Desktop/SHAKE256-FPGA/Implementation/vectors/tv_all.mem", vec_all);
+        $readmemh({tv_dir, "/tv_all.mem"}, vec_all);
 
         #100;
         @(posedge clk); #0.5; 
