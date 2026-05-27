@@ -65,9 +65,7 @@ module keccak_permutation_pipeline (
                         round_ctr <= 5'd0;
                     end
                 end
-                ST_TRP: begin
-                    trp_mid_reg <= trp_next;
-                end
+                ST_TRP: trp_mid_reg <= trp_next;
                 ST_CI: begin
                     if (round_ctr == (`KECCAK_NUM_ROUNDS - 1)) begin
                         out_valid <= 1'b1;
