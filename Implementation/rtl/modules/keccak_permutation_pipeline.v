@@ -58,23 +58,25 @@ module keccak_permutation_pipeline (
         end else begin
             curr_state <= next_state;
             out_valid <= 1'b0; 
-            case (next_state)
+            case (curr_state)
                 ST_IDLE: begin
-                    if (curr_state == ST_CI) begin
-                        out_valid <= 1'b1;
-                        state_out <= ci_next; 
+                    if (in_valid) begin
+                        state_reg <= state_in;
+                        round_ctr <= 5'd0;
                     end
                 end
                 ST_TRP: begin
-                    if (curr_state == ST_IDLE) begin
-                        state_reg <= state_in;
-                        round_ctr <= 5'd0;
-                    end else if (curr_state == ST_CI) begin
+                    trp_mid_reg <= trp_next;
+                end
+                ST_CI: begin
+                    if (round_ctr == (`KECCAK_NUM_ROUNDS - 1)) begin
+                        out_valid <= 1'b1;
+                        state_out <= ci_next;
+                    end else begin
                         state_reg <= ci_next;
                         round_ctr <= round_ctr + 5'd1;
                     end
                 end
-                ST_CI: trp_mid_reg <= trp_next;
             endcase
         end
     end
