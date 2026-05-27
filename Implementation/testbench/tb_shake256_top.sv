@@ -160,41 +160,43 @@ module tb_shake256_top;
     end
     endtask
 
-    string tv_dir;
-    int fd;
+    string tb_file, tb_dir, tv_dir, report_path;
+
+    function automatic string dirname(input string path);
+        int slash_pos = -1;
+
+        for (int j = 0; j < path.len(); j++)
+            if ((path[j] == 8'h2F) || (path[j] == 8'h5C)) slash_pos = j;
+
+        return (slash_pos > 0) ? path.substr(0, slash_pos - 1) : (slash_pos == 0) ? path.substr(0, 0) : ".";
+    endfunction
 
     initial begin
-        fd = $fopen("../../../../vector/tv_spec.txt", "r");
-        if (fd != 0) begin
-            $fclose(fd);
-            tv_dir = "../../../../vector";
-        end else begin
-            tv_dir = "../../../../../vector";
-        end
+        tb_file = `__FILE__;
+        tb_dir = dirname(tb_file);
+        tv_dir = {tb_dir, "/../vector"};
+        report_path = {tb_dir, "/result.log"};
 
         error_count = 0; rst_n = 0; start = 0; absorb_block_valid = 0; 
         squeeze_data_ready = 1'b1;
 
-        if (tv_dir == ".") begin
-            report_fd = $fopen("result.log", "w");
-        end else begin
-            report_fd = $fopen({tv_dir, "/../testbench/result.log"}, "w");
-        end
+        report_fd = $fopen(report_path, "w");
         spec_fd = $fopen({tv_dir, "/tv_spec.txt"}, "r");
         
         if (spec_fd == 0) begin 
-            $display("ERROR: Cannot open tv_spec.txt"); 
+            $display("ERROR: Cannot open %s/tv_spec.txt", tv_dir); 
             $finish; 
         end
         
-        $fgets(line_buffer, spec_fd);
-        $sscanf(line_buffer, "tv_count=%d", tv_count_actual);
+        void'($fgets(line_buffer, spec_fd));
+        void'($sscanf(line_buffer, "tv_count=%d", tv_count_actual));
         $fclose(spec_fd);
 
         if (tv_count_actual > MAX_BUFFER) begin 
             $display("ERROR: tv_count exceeds MAX_BUFFER"); 
             $finish; 
         end
+        
         $readmemh({tv_dir, "/tv_all.mem"}, vec_all);
 
         #100;
