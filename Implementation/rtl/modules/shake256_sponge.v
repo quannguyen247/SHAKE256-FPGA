@@ -35,7 +35,7 @@ module shake256_sponge #(
     reg [`KECCAK_STATE_WIDTH-1:0] keccak_state;
     reg [BLOCK_WIDTH-1:0] absorb_cnt, squeeze_cnt;
     
-    reg perm_start;
+    wire perm_start;
     wire perm_done;
     wire [`KECCAK_STATE_WIDTH-1:0] perm_out;
 
@@ -84,10 +84,8 @@ module shake256_sponge #(
             absorb_cnt <= 0;
             squeeze_cnt <= 0;
             curr_state <= ST_IDLE;
-            perm_start <= 1'b0;
         end else begin
             curr_state <= next_state;
-            perm_start <= (next_state == ST_START);
             case (curr_state)
                 ST_IDLE: begin
                     if (start) begin
@@ -108,6 +106,7 @@ module shake256_sponge #(
         end
     end
 
+    assign perm_start = (curr_state == ST_START);
     assign absorb_ready = (curr_state == ST_ABSORB);
     assign squeeze_valid = (curr_state == ST_SQUEEZE) && (squeeze_cnt > 0);
     assign squeeze_out = keccak_state[1087:0]; 
